@@ -3,7 +3,7 @@ import json,os
 import pandas as pd
 import streamlit as st
 from operations import NGOTools,ROLES,load_state
-from agent import ask,safe_error_message
+from agent import ask,safe_error_message,log_private_diagnostic
 st.set_page_config(page_title='FieldBridge Foundation AI | ONE Light Analytics',page_icon='◈',layout='wide')
 st.markdown('''<style>.stApp{background:#f6f4ee;color:#122c35}.block-container{padding-top:2rem;padding-bottom:3rem}.hero{padding:34px 38px;border-radius:18px;background:linear-gradient(115deg,#0b2530,#28574e);color:white;margin-bottom:24px}.hero h1{color:white;font-size:3rem;line-height:1.1;margin:14px 0}.hero p{color:#e0e8e6;max-width:800px}.kicker{font-size:12px;letter-spacing:.15em;color:#e4bd7a}.stButton button{min-height:44px;height:auto;white-space:normal}.stButton button p,.stButton button [data-testid="stMarkdownContainer"]{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;line-height:1.45}.stButton button p{-webkit-line-clamp:unset!important}.hero h1{overflow-wrap:break-word}@media(max-width:640px){.hero{padding:24px}.hero h1{font-size:2.1rem}}[data-testid="stMetric"]{background:white;border:1px solid #d8dfd8;border-radius:12px;padding:16px}[data-testid="stMetricValue"]{color:#163e43}</style>''',unsafe_allow_html=True)
 for k,v in [('fb_state',load_state()),('fb_messages',[])]:
@@ -68,7 +68,9 @@ with chat:
                     with st.expander('Sources and tool evidence'):st.json(response['trace'])
                     st.session_state.fb_messages.append({'role':'assistant','content':response['text'],'trace':response['trace']})
                 except PermissionError as e:st.info(str(e))
-                except Exception as error:st.error(safe_error_message(error))
+                except Exception as error:
+                    log_private_diagnostic(error,key)
+                    st.error(safe_error_message(error))
     with right:
         st.markdown('#### Try an operating question')
         prompts=[
