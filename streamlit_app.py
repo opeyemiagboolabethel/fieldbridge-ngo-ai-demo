@@ -5,7 +5,7 @@ import streamlit as st
 from operations import NGOTools,ROLES,load_state
 from agent import ask
 st.set_page_config(page_title='FieldBridge Foundation AI | ONE Light Analytics',page_icon='◈',layout='wide')
-st.markdown('''<style>.stApp{background:#f6f4ee;color:#122c35}.block-container{padding-top:2rem;padding-bottom:3rem}.hero{padding:34px 38px;border-radius:18px;background:linear-gradient(115deg,#0b2530,#28574e);color:white;margin-bottom:24px}.hero h1{color:white;font-size:3rem;line-height:1.1;margin:14px 0}.hero p{color:#e0e8e6;max-width:800px}.kicker{font-size:12px;letter-spacing:.15em;color:#e4bd7a}.stButton button{min-height:44px}[data-testid="stMetric"]{background:white;border:1px solid #d8dfd8;border-radius:12px;padding:16px}[data-testid="stMetricValue"]{color:#163e43}</style>''',unsafe_allow_html=True)
+st.markdown('''<style>.stApp{background:#f6f4ee;color:#122c35}.block-container{padding-top:2rem;padding-bottom:3rem}.hero{padding:34px 38px;border-radius:18px;background:linear-gradient(115deg,#0b2530,#28574e);color:white;margin-bottom:24px}.hero h1{color:white;font-size:3rem;line-height:1.1;margin:14px 0}.hero p{color:#e0e8e6;max-width:800px}.kicker{font-size:12px;letter-spacing:.15em;color:#e4bd7a}.stButton button{min-height:44px;height:auto;white-space:normal}.stButton button p,.stButton button [data-testid="stMarkdownContainer"]{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;line-height:1.45}.stButton button p{-webkit-line-clamp:unset!important}.hero h1{overflow-wrap:break-word}@media(max-width:640px){.hero{padding:24px}.hero h1{font-size:2.1rem}}[data-testid="stMetric"]{background:white;border:1px solid #d8dfd8;border-radius:12px;padding:16px}[data-testid="stMetricValue"]{color:#163e43}</style>''',unsafe_allow_html=True)
 for k,v in [('fb_state',load_state()),('fb_messages',[])]:
     if k not in st.session_state:st.session_state[k]=v
 with st.sidebar:
@@ -68,10 +68,20 @@ with chat:
                 except Exception:st.error('This request could not complete. Try Guided scenario or a focused question. No external action occurred.')
     with right:
         st.markdown('#### Try an operating question')
-        prompts=['What needs attention before the next donor report?','Show verified programme progress and pending records.','Draft a donor update for P02.','Explain the reporting policy.']
-        if role in {'director','finance'}:prompts.append('Show budget availability after commitments.')
-        for i,p in enumerate(prompts):
-            if st.button(p,key=f'prompt{i}',width='stretch'):st.session_state.fb_pending=p;st.rerun()
+        prompts=[
+            ('Reporting priorities','What needs attention before the next donor report?'),
+            ('Programme progress','Show verified programme progress and pending records.'),
+            ('Draft a donor update','Draft a donor update for P02.'),
+            ('Reporting guidance','Explain the reporting policy.'),
+        ]
+        if role in {'director','finance'}:
+            prompts.append(('Available budget','Show budget availability after commitments.'))
+        for i,(label,prompt) in enumerate(prompts):
+            with st.container(border=True):
+                st.caption(prompt)
+                if st.button(label,key=f'prompt{i}',width='stretch'):
+                    st.session_state.fb_pending=prompt
+                    st.rerun()
         st.caption('Answers should connect to programme IDs and evidence. Review all drafts before use. This public demo has no beneficiary records or real donor data.')
 with desk:
     st.subheader('Trace each answer back to the evidence')
