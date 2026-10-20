@@ -35,6 +35,68 @@ with st.expander('Start here · a three-minute walkthrough',expanded=False):
     st.markdown('**1.** Open AI Assistant and ask what needs attention before the next donor report.\n\n**2.** Inspect R02 and E03 in Evidence Desk: the deadline passed, but evidence still needs review.\n\n**3.** In Action Lab, prepare an E03 follow-up, review its owner and due date, then confirm. Inspect the session audit.\n\n**4.** Draft a P02 donor update. Notice that pending records stay separate and no impact claim is invented.')
 board,chat,desk,lab=st.tabs(['Mission overview','AI Assistant','Evidence Desk','Action Lab'])
 def table(rows):st.dataframe(pd.DataFrame(rows),hide_index=True,width='stretch')
+
+FIELD_LABELS={
+    'id':'Record reference','programme_id':'Programme reference','programme':'Programme',
+    'deliverable':'Report or deliverable','donor':'Donor','due':'Due date','status':'Status',
+    'owner':'Responsible person','days_to_due':'Days until due','overdue':'Overdue',
+    'evidence_gaps':'Evidence to review','item':'Evidence item','location':'Location',
+    'currency':'Currency','budget':'Approved budget','spent':'Recorded spending',
+    'committed':'Open commitments','available':'Available budget','target':'Target',
+    'verified_unique_reach':'Verified unique reach','pending_verification':'Pending verification',
+    'unit':'Reporting unit','progress_pct':'Verified progress (%)','title':'Guidance',
+    'text':'Detail','evidence_id':'Evidence reference','task':'Follow-up task',
+    'actor':'Recorded by','action':'Action','date':'Recorded date','record':'Task details',
+    'draft':'Internal draft','sources':'Source references'
+}
+SOURCE_LABELS={
+    'reporting_queue':'Donor reporting calendar','programme_progress':'Programme delivery records',
+    'evidence_gaps':'Evidence awaiting review','budget_position':'Programme budget records',
+    'knowledge':'Reporting and finance guidance','donor_draft':'Sources for the donor-update draft',
+    'propose_followup':'Proposed evidence follow-up','session_audit':'Confirmed session actions'
+}
+def readable_value(value):
+    if value is None:return 'Not recorded'
+    if isinstance(value,bool):return 'Yes' if value else 'No'
+    if isinstance(value,list):
+        return '; '.join(readable_value(item) for item in value) if value else 'None recorded'
+    if isinstance(value,dict):
+        return '; '.join(FIELD_LABELS.get(str(k),str(k).replace('_',' ').capitalize())+': '+readable_value(v) for k,v in value.items())
+    if isinstance(value,(int,float)):return format(value,',')
+    return str(value)
+
+def readable_record(record):
+    if not isinstance(record,dict):
+        st.text(readable_value(record))
+        return
+    st.table(pd.DataFrame([
+        {'Field':FIELD_LABELS.get(str(k),str(k).replace('_',' ').capitalize()),'Detail':readable_value(v)}
+        for k,v in record.items()
+    ]))
+
+def show_evidence(trace):
+    if not trace:
+        st.caption('No programme records were retrieved for this response.')
+        return
+    st.caption('These are the demonstration records used for this answer. References match the Evidence Desk.')
+    for entry in trace:
+        st.markdown('**'+SOURCE_LABELS.get(entry.get('tool',''),'Supporting records')+'**')
+        result=entry.get('result',{})
+        if not isinstance(result,dict):
+            st.text(readable_value(result))
+            continue
+        if result.get('error'):
+            st.info(str(result['error']))
+            continue
+        records=result.get('records')
+        if isinstance(records,list):
+            if not records:st.caption('No matching records.')
+            for record in records:
+                readable_record(record)
+        else:
+            readable_record({k:v for k,v in result.items() if k!='note'})
+        if result.get('note'):st.caption(str(result['note']))
+
 with board:
     queue=t.reporting_queue()['records'];gaps=t.evidence_gaps()['records']
     cols=st.columns(3)
@@ -55,7 +117,7 @@ with chat:
             with st.chat_message(m['role']):
                 st.markdown(m['content'])
                 if m.get('trace'):
-                    with st.expander('Sources and tool evidence'):st.json(m['trace'])
+                    with st.expander('Sources used for this answer'):show_evidence(m['trace'])
         message=st.chat_input('What needs attention before the next donor report?')
         if st.session_state.get('fb_pending'):message=st.session_state.pop('fb_pending')
         if message:
@@ -65,7 +127,7 @@ with chat:
                 try:
                     with st.spinner('Checking the programme records…'):response=ask(t,message,key,mode=='Live AI',history,model=model)
                     st.markdown(response['text']);st.caption(response['mode'])
-                    with st.expander('Sources and tool evidence'):st.json(response['trace'])
+                    with st.expander('Sources used for this answer'):show_evidence(response['trace'])
                     st.session_state.fb_messages.append({'role':'assistant','content':response['text'],'trace':response['trace']})
                 except PermissionError as e:st.info(str(e))
                 except Exception as error:
@@ -109,7 +171,7 @@ with lab:
         proposal=st.session_state.get('fb_proposal')
         if proposal:
             with st.container(border=True):
-                st.markdown('**Review proposed task**');st.json(proposal)
+                st.markdown('**Review proposed task**');readable_record(proposal)
                 if proposal['due']<t.state['as_of']:st.warning('The original evidence deadline has passed. This task preserves that deadline; the team must agree a recovery date.')
                 with st.form('confirm_task'):
                     confirm=st.checkbox('I have reviewed this simulated task and its owner.');submit=st.form_submit_button('Confirm session follow-up')
@@ -119,6 +181,6 @@ with lab:
                     except (ValueError,PermissionError) as e:st.error(str(e))
     else:st.info('Finance can inspect funding; programme leadership approves evidence follow-ups.')
     st.markdown('#### Session task register');table(t.state['tasks'])
-    with st.expander('Inspect the audit trail'):st.json(t.state['audit'])
+    with st.expander('Review confirmed session actions'):show_evidence([{'tool':'session_audit','result':{'records':t.state['audit']}}])
     st.download_button('Download session audit',json.dumps(t.state['audit'],indent=2),'fieldbridge-session-audit.json','application/json')
 st.divider();st.caption('FieldBridge Foundation and all donors, budgets, programmes and records are fictional. This is a demonstration of workflow support, not a client case study or a production grant-management platform. No funding, beneficiary eligibility or safeguarding decisions are automated.')
