@@ -53,3 +53,13 @@ def safe_error_message(error):
     if isinstance(error,(ImportError,ModuleNotFoundError)):
         return 'The AI dependency did not load (AI-DEPENDENCY). Reboot the app after its dependencies finish installing.'
     return 'The AI integration could not complete this request (AI-INTEGRATION). Share this diagnostic label for investigation. No external action occurred.'
+
+def log_private_diagnostic(error,api_key=''):
+    """Log a traceback only after removing credentials and request URLs."""
+    import logging,re,traceback
+    detail=''.join(traceback.format_exception(type(error),error,error.__traceback__))
+    if api_key:detail=detail.replace(api_key,'[REDACTED]')
+    detail=re.sub(r'AIza[\w-]+','[REDACTED]',detail)
+    detail=re.sub(r'https?://[^\s\]\)]+','[URL REDACTED]',detail)
+    detail=re.sub(r'(?i)(bearer\s+)[^\s]+',r'\1[REDACTED]',detail)
+    logging.getLogger('fieldbridge.ai').error('FIELDBRIDGE_AI_DIAGNOSTIC\n%s',detail)
