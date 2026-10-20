@@ -3,7 +3,7 @@ import json,os
 import pandas as pd
 import streamlit as st
 from operations import NGOTools,ROLES,load_state
-from agent import ask
+from agent import ask,safe_error_message
 st.set_page_config(page_title='FieldBridge Foundation AI | ONE Light Analytics',page_icon='◈',layout='wide')
 st.markdown('''<style>.stApp{background:#f6f4ee;color:#122c35}.block-container{padding-top:2rem;padding-bottom:3rem}.hero{padding:34px 38px;border-radius:18px;background:linear-gradient(115deg,#0b2530,#28574e);color:white;margin-bottom:24px}.hero h1{color:white;font-size:3rem;line-height:1.1;margin:14px 0}.hero p{color:#e0e8e6;max-width:800px}.kicker{font-size:12px;letter-spacing:.15em;color:#e4bd7a}.stButton button{min-height:44px;height:auto;white-space:normal}.stButton button p,.stButton button [data-testid="stMarkdownContainer"]{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;line-height:1.45}.stButton button p{-webkit-line-clamp:unset!important}.hero h1{overflow-wrap:break-word}@media(max-width:640px){.hero{padding:24px}.hero h1{font-size:2.1rem}}[data-testid="stMetric"]{background:white;border:1px solid #d8dfd8;border-radius:12px;padding:16px}[data-testid="stMetricValue"]{color:#163e43}</style>''',unsafe_allow_html=True)
 for k,v in [('fb_state',load_state()),('fb_messages',[])]:
@@ -16,6 +16,9 @@ with st.sidebar:
     if not key:
         try:key=st.secrets.get('GEMINI_API_KEY','') or st.secrets.get('GOOGLE_API_KEY','')
         except Exception:key=''
+    model=os.getenv('GEMINI_MODEL','gemini-3.5-flash-lite')
+    try:model=st.secrets.get('GEMINI_MODEL',model)
+    except Exception:pass
     mode=st.radio('Conversation mode',['Guided scenario']+(['Live AI'] if key else []))
     st.caption('Guided scenario uses deterministic answers. Live AI uses Gemini when a private API key is configured. This is not an OpenAI product.')
     if st.button('Reset demonstration'):
@@ -60,12 +63,12 @@ with chat:
             with st.chat_message('user'):st.markdown(message)
             with st.chat_message('assistant'):
                 try:
-                    with st.spinner('Checking the programme records…'):response=ask(t,message,key,mode=='Live AI',history)
+                    with st.spinner('Checking the programme records…'):response=ask(t,message,key,mode=='Live AI',history,model=model)
                     st.markdown(response['text']);st.caption(response['mode'])
                     with st.expander('Sources and tool evidence'):st.json(response['trace'])
                     st.session_state.fb_messages.append({'role':'assistant','content':response['text'],'trace':response['trace']})
                 except PermissionError as e:st.info(str(e))
-                except Exception:st.error('This request could not complete. Try Guided scenario or a focused question. No external action occurred.')
+                except Exception as error:st.error(safe_error_message(error))
     with right:
         st.markdown('#### Try an operating question')
         prompts=[
